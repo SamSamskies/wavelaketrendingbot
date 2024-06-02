@@ -1,15 +1,62 @@
 const { useWebSocketImplementation, Relay } = require("nostr-tools/relay");
 const { npubEncode } = require("nostr-tools/nip19");
+const { SimplePool } = require("nostr-tools/pool");
 
 useWebSocketImplementation(require("ws"));
 
+const relayUri = "wss://relay.wavlake.com";
+
 const getTag = (event, tag) => event.tags.find((t) => t[0] === tag);
 
+const getZappedEvents = async (zappedEventIds) => {
+  const pool = new SimplePool();
+  const relays = [relayUri];
+  const events = await pool.querySync(relays, { ids: zappedEventIds });
+
+  pool.close(relays);
+
+  return Object.groupBy(events, ({ id }) => id);
+};
+
+const getEventAuthorNpub = (event) => npubEncode(event.pubkey);
+
+const extractAmountInSats = (event) =>
+  Number(getTag(event, "amount")[1]) / 1000;
+
+const extractTrackId = (event) => {
+  return getTag(event, "a")[1].split(":")[2];
+};
+
+const normalizeATagEvents = (aTagEvents) => {
+  return aTagEvents.map((event) => {
+    const zapperNpub = getEventAuthorNpub(event);
+    const zapAmount = extractAmountInSats(event);
+    const comment = event.content;
+    const trackId = extractTrackId(event);
+
+    return { zapperNpub, zapAmount, comment, trackId };
+  });
+};
+
+const normalizeETagEvents = async (eTagEvents) => {
+  const getEventId = (event) => getTag(event, "e")[1];
+  const zappedEvents = await getZappedEvents(eTagEvents.map(getEventId));
+
+  return eTagEvents.map((event) => {
+    const zapperNpub = getEventAuthorNpub(event);
+    const zapAmount = extractAmountInSats(event);
+    const comment = event.content;
+    const trackId = extractTrackId(zappedEvents[getEventId(event)][0]);
+
+    return { zapperNpub, zapAmount, comment, trackId };
+  });
+};
+
 const start = async () => {
-  const relayUri = "wss://relay.wavlake.com";
   const relay = await Relay.connect(relayUri);
-  const events = [];
   const numberOfEvents = 10;
+  const aTagZapEvents = [];
+  const eTagZapEvents = [];
 
   const sub = relay.subscribe(
     [
@@ -23,29 +70,38 @@ const start = async () => {
     ],
     {
       onevent(event) {
+        const getParsedDescription = () =>
+          JSON.parse(getTag(event, "description")[1]);
+
         if (getTag(event, "a")) {
-          events.push(JSON.parse(getTag(event, "description")[1]));
+          aTagZapEvents.push(getParsedDescription());
+        } else if (getTag(event, "e")) {
+          eTagZapEvents.push(getParsedDescription());
         }
       },
       oneose() {
-        const getAmount = (event) => Number(getTag(event, "amount")[1]);
+        normalizeETagEvents(eTagZapEvents).then((eTagResults) => {
+          const results = [
+            ...eTagResults,
+            ...normalizeATagEvents(aTagZapEvents),
+          ];
 
-        sub.close();
-        relay.close();
-        events.sort((a, b) => getAmount(a) - getAmount(b));
+          sub.close();
+          relay.close();
 
-        events.slice(-numberOfEvents).forEach((event) => {
-          const zapperNpub = npubEncode(event.pubkey);
-          const zapAmount = getAmount(event) / 1000;
-          const comment =
-            event.content.length === 0
-              ? event.content
-              : `"${event.content}"\n\n`;
-          const trackId = getTag(event, "a")[1].split(":")[2];
-          const trackLink = `https://wavlake.com/track/${trackId}`;
-          console.log(
-            `nostr:${zapperNpub} zapped ⚡️${zapAmount.toLocaleString()} sats\n\n${comment}${trackLink}\n\n`,
-          );
+          results.sort((a, b) => a.zapAmount - b.zapAmount);
+
+          results
+            .slice(-numberOfEvents)
+            .forEach(({ zapperNpub, zapAmount, comment, trackId }) => {
+              const normalizedComment =
+                comment.length === 0 ? comment : `"${comment}"\n\n`;
+              const trackLink = `https://wavlake.com/track/${trackId}`;
+
+              console.log(
+                `nostr:${zapperNpub} zapped ⚡️${zapAmount.toLocaleString()} sats\n\n${normalizedComment}${trackLink}\n\n\n\n`,
+              );
+            });
         });
       },
     },
