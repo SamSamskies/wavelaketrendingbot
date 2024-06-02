@@ -3,6 +3,8 @@ const { npubEncode } = require("nostr-tools/nip19");
 
 useWebSocketImplementation(require("ws"));
 
+const getTag = (event, tag) => event.tags.find((t) => t[0] === tag);
+
 const start = async () => {
   const relayUri = "wss://relay.wavlake.com";
   const relay = await Relay.connect(relayUri);
@@ -21,15 +23,12 @@ const start = async () => {
     ],
     {
       onevent(event) {
-        if (event.tags.find((t) => t[0] === "a")) {
-          events.push(
-            JSON.parse(event.tags.find((t) => t[0] === "description")[1]),
-          );
+        if (getTag(event, "a")) {
+          events.push(JSON.parse(getTag(event, "description")[1]));
         }
       },
       oneose() {
-        const getAmount = (event) =>
-          Number(event.tags.find((t) => t[0] === "amount")[1]);
+        const getAmount = (event) => Number(getTag(event, "amount")[1]);
 
         sub.close();
         relay.close();
@@ -42,7 +41,7 @@ const start = async () => {
             event.content.length === 0
               ? event.content
               : `"${event.content}"\n\n`;
-          const trackId = event.tags.find((t) => t[0] === "a")[1].split(":")[2];
+          const trackId = getTag(event, "a")[1].split(":")[2];
           const trackLink = `https://wavlake.com/track/${trackId}`;
           console.log(
             `nostr:${zapperNpub} zapped ⚡️${zapAmount.toLocaleString()} sats\n\n${comment}${trackLink}\n\n`,
