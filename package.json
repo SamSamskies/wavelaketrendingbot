@@ -1,11 +1,15 @@
 {
   "name": "wavlaketrendingbot",
   "version": "0.1.0",
-  "description": "Nostr bot that posts songs trending on Wavlake",
+  "description": "Script that helps prepare content for the Wavlake Trending Bot to post on Nostr.",
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SamSamskies/wavlaketrendingbot.git"
   },
   "keywords": [
     "nostr",
@@ -16,6 +20,10 @@
   ],
   "author": "Sam Samskies",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/SamSamskies/wavlaketrendingbot/issues"
+  },
+  "homepage": "https://github.com/SamSamskies/wavlaketrendingbot#readme",
   "dependencies": {
     "nostr-tools": "2.7.0",
     "ws": "^8.17.0"
