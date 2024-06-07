@@ -108,8 +108,4 @@ const start = async () => {
   );
 };
 
-try {
-  start();
-} catch (err) {
-  console.error(err);
-}
+start().catch(console.error);
