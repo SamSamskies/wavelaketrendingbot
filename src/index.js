@@ -27,36 +27,50 @@ const extractTrackId = (event) => {
   return getTag(event, "a")[1].split(":")[2];
 };
 
-const normalizeATagEvents = (aTagEvents) => {
-  return aTagEvents.map((event) => {
-    const zapperNpub = getEventAuthorNpub(event);
-    const zapAmount = extractAmountInSats(event);
-    const comment = event.content;
-    const trackId = extractTrackId(event);
+const getZapEvent = (event) => {
+  try {
+    return JSON.parse(getTag(event, "description")[1]);
+  } catch (err) {
+    console.error(err);
+    console.log(event);
+    return null;
+  }
+};
 
-    return { zapperNpub, zapAmount, comment, trackId };
+const normalizeATagEvents = (zapReceiptEvents) => {
+  return zapReceiptEvents.map((event) => {
+    const zapEvent = getZapEvent(event);
+    const zapperNpub = getEventAuthorNpub(zapEvent);
+    const zapAmount = extractAmountInSats(zapEvent);
+    const comment = zapEvent.content;
+    const trackId = extractTrackId(zapEvent);
+
+    return { zapperNpub, zapAmount, comment, trackId, zapReceiptId: event.id };
   });
 };
 
-const normalizeETagEvents = async (eTagEvents) => {
+const normalizeETagEvents = async (zapReceiptEvents) => {
   const getEventId = (event) => getTag(event, "e")[1];
-  const zappedEvents = await getZappedEvents(eTagEvents.map(getEventId));
+  const zappedEvents = await getZappedEvents(
+    zapReceiptEvents.map(getZapEvent).map(getEventId),
+  );
 
-  return eTagEvents.map((event) => {
-    const zapperNpub = getEventAuthorNpub(event);
-    const zapAmount = extractAmountInSats(event);
-    const comment = event.content;
-    const trackId = extractTrackId(zappedEvents[getEventId(event)][0]);
+  return zapReceiptEvents.map((event) => {
+    const zapEvent = getZapEvent(event);
+    const zapperNpub = getEventAuthorNpub(zapEvent);
+    const zapAmount = extractAmountInSats(zapEvent);
+    const comment = zapEvent.content;
+    const trackId = extractTrackId(zappedEvents[getEventId(zapEvent)][0]);
 
-    return { zapperNpub, zapAmount, comment, trackId };
+    return { zapperNpub, zapAmount, comment, trackId, zapReceiptId: event.id };
   });
 };
 
 const start = async () => {
   const relay = await Relay.connect(relayUri);
   const numberOfEvents = 10;
-  const aTagZapEvents = [];
-  const eTagZapEvents = [];
+  const aTagZapReceiptEvents = [];
+  const eTagZapReceiptEvents = [];
 
   const sub = relay.subscribe(
     [
@@ -70,20 +84,17 @@ const start = async () => {
     ],
     {
       onevent(event) {
-        const getParsedDescription = () =>
-          JSON.parse(getTag(event, "description")[1]);
-
         if (getTag(event, "a")) {
-          aTagZapEvents.push(getParsedDescription());
+          aTagZapReceiptEvents.push(event);
         } else if (getTag(event, "e")) {
-          eTagZapEvents.push(getParsedDescription());
+          eTagZapReceiptEvents.push(event);
         }
       },
       oneose() {
-        normalizeETagEvents(eTagZapEvents).then((eTagResults) => {
+        normalizeETagEvents(eTagZapReceiptEvents).then((eTagResults) => {
           const results = [
             ...eTagResults,
-            ...normalizeATagEvents(aTagZapEvents),
+            ...normalizeATagEvents(aTagZapReceiptEvents),
           ];
 
           sub.close();
@@ -93,15 +104,18 @@ const start = async () => {
 
           results
             .slice(-numberOfEvents)
-            .forEach(({ zapperNpub, zapAmount, comment, trackId }) => {
-              const normalizedComment =
-                comment.length === 0 ? comment : `"${comment}"\n\n`;
-              const trackLink = `https://wavlake.com/track/${trackId}`;
+            .forEach(
+              ({ zapperNpub, zapAmount, comment, trackId, zapReceiptId }) => {
+                const normalizedComment =
+                  comment.length === 0 ? comment : `"${comment}"\n\n`;
+                const trackLink = `https://wavlake.com/track/${trackId}`;
 
-              console.log(
-                `nostr:${zapperNpub} zapped ⚡️${zapAmount.toLocaleString()} sats\n\n${normalizedComment}${trackLink}\n\n\n\n`,
-              );
-            });
+                console.log(zapReceiptId);
+                console.log(
+                  `nostr:${zapperNpub} zapped ⚡️${zapAmount.toLocaleString()} sats\n\n${normalizedComment}${trackLink}\n\n\n\n`,
+                );
+              },
+            );
         });
       },
     },
