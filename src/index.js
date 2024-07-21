@@ -8,6 +8,22 @@ const relayUri = "wss://relay.wavlake.com";
 
 const getTag = (event, tag) => event.tags.find((t) => t[0] === tag);
 
+const groupBy = (items, callbackFn) => {
+  const result = {};
+
+  items.forEach((item, index, array) => {
+    const key = callbackFn(item, index, array);
+
+    if (!result[key]) {
+      result[key] = [];
+    }
+
+    result[key].push(item);
+  });
+
+  return result;
+};
+
 const getZappedEvents = async (zappedEventIds) => {
   const pool = new SimplePool();
   const relays = [relayUri];
@@ -15,7 +31,7 @@ const getZappedEvents = async (zappedEventIds) => {
 
   pool.close(relays);
 
-  return Object.groupBy(events, ({ id }) => id);
+  return groupBy(events, ({ id }) => id);
 };
 
 const getEventAuthorNpub = (event) => npubEncode(event.pubkey);
