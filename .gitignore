@@ -131,3 +131,6 @@ dist
 
 # WebStorm
 .idea
+
+# Misc
+.DS_Store
