@@ -95,6 +95,7 @@ const start = async () => {
         since: Math.floor(Date.now() / 1000) - 24 * 60 * 60, // last 24 hours
         "#p": [
           "7759fb24cec56fc57550754ca8f6d2c60183da2537c8f38108fdf283b20a0e58",
+          "7759fed821f62af2b1279d6bdbca0bb87d70bf0015a4957611ee35b46b5fadba",
         ],
       },
     ],
