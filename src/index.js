@@ -1,5 +1,5 @@
 const { useWebSocketImplementation, Relay } = require("nostr-tools/relay");
-const { npubEncode } = require("nostr-tools/nip19");
+const { npubEncode, neventEncode } = require("nostr-tools/nip19");
 const { SimplePool } = require("nostr-tools/pool");
 
 useWebSocketImplementation(require("ws"));
@@ -61,7 +61,13 @@ const normalizeATagEvents = (zapReceiptEvents) => {
     const comment = zapEvent.content;
     const trackId = extractTrackId(zapEvent);
 
-    return { zapperNpub, zapAmount, comment, trackId, zapReceiptId: event.id };
+    return {
+      zapperNpub,
+      zapAmount,
+      comment,
+      trackId,
+      zapReceiptId: neventEncode({ id: event.id, relays: [relayUri] }),
+    };
   });
 };
 
@@ -78,7 +84,13 @@ const normalizeETagEvents = async (zapReceiptEvents) => {
     const comment = zapEvent.content;
     const trackId = extractTrackId(zappedEvents[getEventId(zapEvent)][0]);
 
-    return { zapperNpub, zapAmount, comment, trackId, zapReceiptId: event.id };
+    return {
+      zapperNpub,
+      zapAmount,
+      comment,
+      trackId,
+      zapReceiptId: neventEncode({ id: event.id, relays: [relayUri] }),
+    };
   });
 };
 
